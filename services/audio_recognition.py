@@ -9,22 +9,24 @@ DB_FILE = "shamzam.db"
 def get_track_metadata(title, artist):
     """
     Look up a track in the catalogue using its title and artist.
-    Returns a dictionary with id, title, artist, and the full track file path.
+    Returns a dictionary with id, title, artist, and the Base85-encoded full track (truncated for display).
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, title, artist, file_path FROM tracks WHERE title = ? AND artist = ?",
+        "SELECT id, title, artist, encoded_file FROM tracks WHERE title = ? AND artist = ?",
         (title, artist)
     )
     track = cursor.fetchone()
     conn.close()
     if track:
+        encoded_file = track[3]
+        truncated = encoded_file if len(encoded_file) <= 100 else encoded_file[:100] + "..."
         return {
             "id": track[0],
             "title": track[1],
             "artist": track[2],
-            "file_path": track[3]
+            "encoded_file": truncated
         }
     return None
 
@@ -39,7 +41,7 @@ def recognise_track():
     and then checks if the corresponding full track (added by the admin) exists in the catalogue.
     Returns a JSON response containing:
       - A message indicating success or failure,
-      - The catalogue metadata (including the full track file path),
+      - The catalogue metadata (including the truncated Base85-encoded full track),
       - A selected subset of metadata from AudD.io (title, artist, album, release_date).
     """
     file = request.files.get('file')
@@ -49,11 +51,9 @@ def recognise_track():
     files = {'file': (file.filename, file.read())}
     data = {'api_token': API_KEY}
     response = requests.post("https://api.audd.io/", files=files, data=data)
-
     if response.status_code == 200:
         result = response.json().get("result", {})
         if "title" in result and "artist" in result:
-            # Select key metadata from AudD.io
             selected_metadata = {
                 "title": result.get("title"),
                 "artist": result.get("artist"),

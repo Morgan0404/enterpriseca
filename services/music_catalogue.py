@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 import sqlite3
 import os
+import base64
+import zlib
 
 app = Flask(__name__)
 DB_FILE = "shamzam.db"
@@ -9,28 +11,27 @@ DB_FILE = "shamzam.db"
 def list_tracks():
     """
     Retrieve all tracks from the catalogue.
-    Returns a 404 error with JSON if no tracks exist.
-    For display purposes, the 'file_path' is truncated.
+    Returns a 404 error if no tracks exist.
+    For display purposes, the 'encoded_file' is truncated to 100 characters.
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, title, artist, file_path FROM tracks")
+    cursor.execute("SELECT id, title, artist, encoded_file FROM tracks")
     tracks = cursor.fetchall()
     conn.close()
 
     if not tracks:
         return jsonify({"error": "No tracks found"}), 404
 
-    # Truncate the file_path for display (e.g., first 100 characters)
     track_list = []
     for t in tracks:
-        fp = t[3]
-        truncated_fp = fp if len(fp) <= 100 else fp[:100] + "..."
+        encoded_file = t[3]
+        truncated = encoded_file if len(encoded_file) <= 100 else encoded_file[:100] + "..."
         track_list.append({
             "id": t[0],
             "title": t[1],
             "artist": t[2],
-            "file_path": truncated_fp  # Display only a truncated version
+            "encoded_file": truncated
         })
 
     return jsonify({"tracks": track_list}), 200
@@ -40,7 +41,8 @@ def add_track():
     """
     Add a full track to the catalogue.
     The admin provides the track's title, artist, and full track file path 
-    (e.g., from the "full" folder). This endpoint stores the provided file path in the database.
+    (e.g., from the "full" folder). The service reads the file, compresses it with zlib,
+    then encodes it in Base85, and stores the encoded string in the database.
     """
     data = request.get_json()
     title = data.get('title')
@@ -53,10 +55,19 @@ def add_track():
     if not os.path.exists(file_path):
         return jsonify({"error": "Full track file does not exist at provided path"}), 400
 
+    try:
+        with open(file_path, "rb") as f:
+            raw_data = f.read()
+            compressed_data = zlib.compress(raw_data)
+            # Encode using Base85 to produce a shorter ASCII representation
+            encoded_file = base64.b85encode(compressed_data).decode('ascii')
+    except Exception as e:
+        return jsonify({"error": "Failed to encode file", "details": str(e)}), 500
+
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO tracks (title, artist, file_path) VALUES (?, ?, ?)", 
-                   (title, artist, file_path))
+    cursor.execute("INSERT INTO tracks (title, artist, encoded_file) VALUES (?, ?, ?)", 
+                   (title, artist, encoded_file))
     conn.commit()
     conn.close()
 

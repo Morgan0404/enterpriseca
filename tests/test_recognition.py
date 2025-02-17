@@ -4,7 +4,7 @@ BASE_URL = "http://127.0.0.1:5002"
 
 def test_recognize_valid_audio():
     """Test recognizing a valid audio file."""
-    files = {"file": open("test_audio/Blinding Lights.wav", "rb")}
+    files = {"file": open("frag/_Blinding Lights.wav", "rb")}
     response = requests.post(f"{BASE_URL}/recognise", files=files)
 
     assert response.status_code in [200, 404]  # ✅ Accept both valid responses
@@ -21,7 +21,7 @@ def test_recognize_missing_file():
 
 def test_recognize_invalid_audio():
     """Test recognition with an invalid file format."""
-    files = {"file": open("test_audio/fake_audio.wav", "rb")}
+    files = {"file": open("frag/fake_audio.wav", "rb")}
     response = requests.post(f"{BASE_URL}/recognise", files=files)
     
     print("Response Status Code:", response.status_code)

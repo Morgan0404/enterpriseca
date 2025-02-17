@@ -8,16 +8,15 @@ cursor = conn.cursor()
 # Drop table if it exists (optional)
 cursor.execute("DROP TABLE IF EXISTS tracks;")
 
-# Create table for tracks with a column for the full track file path
+# Create table with an encoded_file column to store the Base85-encoded, compressed full track.
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tracks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
-    file_path TEXT NOT NULL
+    encoded_file TEXT NOT NULL
 );
 """)
-
 conn.commit()
 conn.close()
 
