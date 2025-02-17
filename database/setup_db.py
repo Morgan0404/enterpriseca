@@ -8,13 +8,13 @@ cursor = conn.cursor()
 # Drop table if it exists (optional)
 cursor.execute("DROP TABLE IF EXISTS tracks;")
 
-# Create table for tracks with a column for the Base85 encoded full track file
+# Create table for tracks with a column for the full track file path
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS tracks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     artist TEXT NOT NULL,
-    encoded_file TEXT NOT NULL
+    file_path TEXT NOT NULL
 );
 """)
 

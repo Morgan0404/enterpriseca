@@ -8,13 +8,13 @@ DB_FILE = "shamzam.db"
 
 def get_track_metadata(title, artist):
     """
-    Look up a track in the catalogue by title and artist.
-    Returns a dictionary with id, title, artist, and the Base85-encoded full track.
+    Look up a track in the catalogue using its title and artist.
+    Returns a dictionary with id, title, artist, and the full track file path.
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, title, artist, encoded_file FROM tracks WHERE title = ? AND artist = ?",
+        "SELECT id, title, artist, file_path FROM tracks WHERE title = ? AND artist = ?",
         (title, artist)
     )
     track = cursor.fetchone()
@@ -24,7 +24,7 @@ def get_track_metadata(title, artist):
             "id": track[0],
             "title": track[1],
             "artist": track[2],
-            "encoded_file": track[3]
+            "file_path": track[3]
         }
     return None
 
@@ -36,17 +36,16 @@ def home():
 def recognise_track():
     """
     Receives an audio fragment, sends it to AudD.io for recognition,
-    and then checks if the corresponding full track exists in the catalogue.
+    and then checks if the corresponding full track (added by the admin) exists in the catalogue.
     Returns a JSON response containing:
       - A message indicating success or failure,
-      - The catalogue metadata (id, title, artist, and Base85-encoded full track),
+      - The catalogue metadata (including the full track file path),
       - A selected subset of metadata from AudD.io (title, artist, album, release_date).
     """
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "No audio file provided"}), 400
 
-    # Send the fragment to AudD.io
     files = {'file': (file.filename, file.read())}
     data = {'api_token': API_KEY}
     response = requests.post("https://api.audd.io/", files=files, data=data)
