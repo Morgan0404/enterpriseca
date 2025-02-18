@@ -11,7 +11,8 @@ def test_recognize_valid_audio():
     response_json = response.json()
 
     if response.status_code == 200:
-        assert "title" in response_json, "Expected a title in response, but got none"
+        assert "track" in response_json, "Expected 'track' key in response, but got none"
+        assert "title" in response_json["track"], "Expected 'title' in track data, but got none"
 
 def test_recognize_missing_file():
     """Test API when no file is uploaded."""

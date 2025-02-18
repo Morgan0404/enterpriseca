@@ -2,7 +2,6 @@ from flask import Flask, request, jsonify
 import sqlite3
 import os
 import base64
-import zlib
 
 app = Flask(__name__)
 DB_FILE = "shamzam.db"
@@ -40,9 +39,8 @@ def list_tracks():
 def add_track():
     """
     Add a full track to the catalogue.
-    The admin provides the track's title, artist, and full track file path 
-    (e.g., from the "full" folder). The service reads the file, compresses it with zlib,
-    then encodes it in Base85, and stores the encoded string in the database.
+    The admin provides the track's title, artist, and full track file path.
+    The service reads the file, encodes it in Base64, and stores the encoded string in the database.
     """
     data = request.get_json()
     title = data.get('title')
@@ -58,9 +56,8 @@ def add_track():
     try:
         with open(file_path, "rb") as f:
             raw_data = f.read()
-            compressed_data = zlib.compress(raw_data)
-            # Encode using Base85 to produce a shorter ASCII representation
-            encoded_file = base64.b85encode(compressed_data).decode('ascii')
+            # Encode using Base64 (no compression)
+            encoded_file = base64.b64encode(raw_data).decode("ascii")
     except Exception as e:
         return jsonify({"error": "Failed to encode file", "details": str(e)}), 500
 
