@@ -1,9 +1,17 @@
 from flask import Flask, request, jsonify
 import requests
 import sqlite3
+import os
 
 app = Flask(__name__)
-API_KEY = "5290aaf3282bc88ef23a7184f76eeb22"  # Replace with your AudD.io API key
+
+# Read the API key from Key.txt
+try:
+    with open("Key.txt", "r") as key_file:
+        API_KEY = key_file.read().strip()
+except Exception as e:
+    raise Exception("Failed to read API key from Key.txt: " + str(e))
+
 DB_FILE = "shamzam.db"
 
 def get_track_metadata(title, artist):

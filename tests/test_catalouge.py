@@ -1,77 +1,114 @@
+import sys
+import os
+import unittest
 import requests
 
-BASE_URL = "http://127.0.0.1:5001"
+# Insert the project root so that the services folder is in the Python path.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from services.repository import TrackRepository
 
-# Update these absolute paths to point to valid files on your system.
+# Base URL for the catalogue service.
+BASE_URL = "http://127.0.0.1:5001/tracks"
+
+# Update these absolute paths to valid files on your system.
 VALID_TEST_SONG = "/Users/morgan/Desktop/EnterprsieCA/full/Blinding Lights.wav"
 VALID_TEMP_SONG = "/Users/morgan/Desktop/EnterprsieCA/full/fake_audio.wav"
 
-def test_add_track():
-    """Test adding a valid track to the catalogue."""
-    data = {
-        "title": "Test Song",
-        "artist": "Test Artist",
-        "file_path": VALID_TEST_SONG
-    }
-    response = requests.post(f"{BASE_URL}/tracks", json=data)
-    # Expect 201 if the file exists at the given path.
-    assert response.status_code == 201, f"Expected 201, got {response.status_code}"
-    assert response.json().get("message") == "Track added successfully"
+def reset_database():
+    """Reset the database by calling the repository's db_teardown() method."""
+    repo = TrackRepository()
+    repo.db_teardown()
 
-def test_list_tracks():
-    """Test listing all tracks in the catalogue."""
-    response = requests.get(f"{BASE_URL}/tracks")
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}"
-    tracks = response.json().get("tracks")
-    assert isinstance(tracks, list)
-    # Check that "Test Song" exists and that it has an "encoded_file" key.
-    assert any(track["title"] == "Test Song" and "encoded_file" in track for track in tracks), "Test Song not found or missing encoded_file"
+class TestCatalogue(unittest.TestCase):
+    def setUp(self):
+        # Reset the database before each test to ensure a clean state.
+        reset_database()
 
-def test_remove_track():
-    """Test removing a track from the catalogue."""
-    # First, add a track to ensure we have one to delete.
-    data = {
-        "title": "Temp Song",
-        "artist": "Temp Artist",
-        "file_path": VALID_TEMP_SONG
-    }
-    add_response = requests.post(f"{BASE_URL}/tracks", json=data)
-    assert add_response.status_code == 201, f"Expected 201, got {add_response.status_code}"
+    def test_add_track(self):
+        """Test adding a valid track to the catalogue."""
+        data = {
+            "title": "Test Song",
+            "artist": "Test Artist",
+            "file_path": VALID_TEST_SONG
+        }
+        response = requests.post(BASE_URL, json=data)
+        self.assertEqual(response.status_code, 201,
+                         f"Expected 201, got {response.status_code}")
+        self.assertEqual(response.json().get("message"), "Track added successfully")
 
-    # Get the track ID for "Temp Song".
-    response = requests.get(f"{BASE_URL}/tracks")
-    tracks = response.json().get("tracks")
-    track_id = next((t["id"] for t in tracks if t["title"] == "Temp Song"), None)
-    assert track_id is not None, "Track ID not found"
+    def test_list_tracks(self):
+        """Test listing all tracks in the catalogue."""
+        # Add a track so there is something to list.
+        data = {
+            "title": "Test Song",
+            "artist": "Test Artist",
+            "file_path": VALID_TEST_SONG
+        }
+        add_response = requests.post(BASE_URL, json=data)
+        self.assertEqual(add_response.status_code, 201)
 
-    # Delete the track.
-    delete_response = requests.delete(f"{BASE_URL}/tracks/{track_id}")
-    assert delete_response.status_code == 200, f"Expected 200, got {delete_response.status_code}"
-    assert delete_response.json().get("message") == "Track removed"
+        response = requests.get(BASE_URL)
+        self.assertEqual(response.status_code, 200,
+                         f"Expected 200, got {response.status_code}")
+        tracks = response.json().get("tracks")
+        self.assertIsInstance(tracks, list)
+        # Check that "Test Song" exists and includes an "encoded_file" key.
+        found = any(track["title"] == "Test Song" and "encoded_file" in track
+                    for track in tracks)
+        self.assertTrue(found, "Test Song not found or missing encoded_file")
 
-def test_add_track_missing_fields():
-    """Test adding a track with missing required fields."""
-    data = {"title": "Incomplete Song"}  # Missing artist & file_path
-    response = requests.post(f"{BASE_URL}/tracks", json=data)
-    assert response.status_code == 400, f"Expected 400, got {response.status_code}"
-    assert "error" in response.json()
+    def test_remove_track(self):
+        """Test removing a track from the catalogue."""
+        # Add a track first.
+        data = {
+            "title": "Temp Song",
+            "artist": "Temp Artist",
+            "file_path": VALID_TEMP_SONG
+        }
+        add_response = requests.post(BASE_URL, json=data)
+        self.assertEqual(add_response.status_code, 201)
 
-def test_remove_non_existent_track():
-    """Test removing a track that does not exist."""
-    response = requests.delete(f"{BASE_URL}/tracks/99999")  # Assuming track ID 99999 does not exist
-    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-    assert response.json().get("error") == "Track not found"
+        # Retrieve the track list to find the ID.
+        response = requests.get(BASE_URL)
+        tracks = response.json().get("tracks")
+        track_id = next((t["id"] for t in tracks if t["title"] == "Temp Song"), None)
+        self.assertIsNotNone(track_id, "Track ID not found")
 
-def test_list_tracks_empty():
-    """Test listing tracks when the catalogue is empty."""
-    # Remove all existing tracks.
-    response = requests.get(f"{BASE_URL}/tracks")
-    if response.status_code == 200:
-        tracks = response.json().get("tracks", [])
-        for track in tracks:
-            requests.delete(f"{BASE_URL}/tracks/{track['id']}")
+        # Delete the track.
+        delete_response = requests.delete(f"{BASE_URL}/{track_id}")
+        self.assertEqual(delete_response.status_code, 200,
+                         f"Expected 200, got {delete_response.status_code}")
+        self.assertEqual(delete_response.json().get("message"), "Track removed")
 
-    response = requests.get(f"{BASE_URL}/tracks")
-    assert response.status_code == 404, f"Expected 404, got {response.status_code}"
-    assert "error" in response.json()
-    assert response.json().get("error") == "No tracks found"
+    def test_add_track_missing_fields(self):
+        """Test adding a track with missing required fields."""
+        data = {"title": "Incomplete Song"}  # Missing 'artist' and 'file_path'
+        response = requests.post(BASE_URL, json=data)
+        self.assertEqual(response.status_code, 400,
+                         f"Expected 400, got {response.status_code}")
+        self.assertIn("error", response.json())
+
+    def test_remove_non_existent_track(self):
+        """Test removing a track that does not exist."""
+        response = requests.delete(f"{BASE_URL}/99999")  # Assuming 99999 does not exist.
+        self.assertEqual(response.status_code, 404,
+                         f"Expected 404, got {response.status_code}")
+        self.assertEqual(response.json().get("error"), "Track not found")
+
+    def test_list_tracks_empty(self):
+        """Test listing tracks when the catalogue is empty."""
+        # Since setUp resets the database, there should be no tracks.
+        response = requests.get(BASE_URL)
+        self.assertEqual(response.status_code, 404,
+                         f"Expected 404, got {response.status_code}")
+        self.assertIn("error", response.json())
+        self.assertEqual(response.json().get("error"), "No tracks found")
+
+    def test_invalid_request_format(self):
+        """Test an invalid POST request without a JSON body."""
+        response = requests.post(BASE_URL)
+        self.assertEqual(response.status_code, 400,
+                         "Expected 400 for a bad request")
+
+if __name__ == '__main__':
+    unittest.main()
