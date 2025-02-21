@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 import requests
-import sqlite3
 import os
+from repository import TrackRepository  # Make sure services is a package
 
 app = Flask(__name__)
 
@@ -12,31 +12,8 @@ try:
 except Exception as e:
     raise Exception("Failed to read API key from Key.txt: " + str(e))
 
-DB_FILE = "shamzam.db"
-
-def get_track_metadata(title, artist):
-    """
-    Look up a track in the catalogue using its title and artist.
-    Returns a dictionary with id, title, artist, and the Base85-encoded full track (truncated for display).
-    """
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute(
-        "SELECT id, title, artist, encoded_file FROM tracks WHERE title = ? AND artist = ?",
-        (title, artist)
-    )
-    track = cursor.fetchone()
-    conn.close()
-    if track:
-        encoded_file = track[3]
-        truncated = encoded_file if len(encoded_file) <= 100 else encoded_file[:100] + "..."
-        return {
-            "id": track[0],
-            "title": track[1],
-            "artist": track[2],
-            "encoded_file": truncated
-        }
-    return None
+# Initialize the repository (it creates the table if needed)
+repo = TrackRepository()
 
 @app.route("/", methods=['GET'])
 def home():
@@ -46,19 +23,21 @@ def home():
 def recognise_track():
     """
     Receives an audio fragment, sends it to AudD.io for recognition,
-    and then checks if the corresponding full track (added by the admin) exists in the catalogue.
-    Returns a JSON response containing:
-      - A message indicating success or failure,
-      - The catalogue metadata (including the truncated Base85-encoded full track),
-      - A selected subset of metadata from AudD.io (title, artist, album, release_date).
+    then checks if the corresponding full track exists in the catalogue using the repository.
+    If found, returns JSON with a message, the catalogue track, and selected metadata from AudD.io.
+    
+    If the query parameter testmode=true is present, the full Base64-encoded string is returned
+    without truncation, so that tests can decode it and verify the complete audio.
     """
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "No audio file provided"}), 400
 
+    # Send the audio file to AudD.io
     files = {'file': (file.filename, file.read())}
     data = {'api_token': API_KEY}
     response = requests.post("https://api.audd.io/", files=files, data=data)
+    
     if response.status_code == 200:
         result = response.json().get("result", {})
         if "title" in result and "artist" in result:
@@ -68,12 +47,18 @@ def recognise_track():
                 "album": result.get("album"),
                 "release_date": result.get("release_date")
             }
-            catalogue_metadata = get_track_metadata(result["title"], result["artist"])
+            # Use the repository to look up the track by title and artist.
+            catalogue_metadata = repo.lookup_by_title_artist(result["title"], result["artist"])
             if catalogue_metadata:
+                # Check for test mode: if not in test mode, truncate the encoded_file.
+                if request.args.get("testmode") != "true":
+                    encoded = catalogue_metadata.get("encoded_file", "")
+                    if len(encoded) > 100:
+                        catalogue_metadata["encoded_file"] = encoded[:100] + "..."
                 return jsonify({
                     "message": "Track recognised and found in catalogue",
-                    "track": catalogue_metadata,
-                    "metadata": selected_metadata
+                    "metadata": selected_metadata,
+                    "track": catalogue_metadata
                 }), 200
             else:
                 return jsonify({
