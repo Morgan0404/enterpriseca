@@ -11,8 +11,8 @@ from services.repository import TrackRepository
 BASE_URL = "http://127.0.0.1:5001/tracks"
 
 # Update these absolute paths to valid files on your system.
-VALID_TEST_SONG = "/Users/morgan/Desktop/EnterprsieCA/full/Blinding Lights.wav"
-VALID_TEMP_SONG = "/Users/morgan/Desktop/EnterprsieCA/full/fake_audio.wav"
+VALID_TEST_SONG = "/Users/morgan/Desktop/EnterpriseCA/full/Blinding Lights.wav"
+VALID_TEMP_SONG = "/Users/morgan/Desktop/EnterpriseCA/full/fake_audio.wav"
 
 def reset_database():
     """Reset the database by calling the repository's db_teardown() method."""

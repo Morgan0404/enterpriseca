@@ -5,12 +5,11 @@ from repository import TrackRepository  # Make sure services is a package
 
 app = Flask(__name__)
 
-# Read the API key from Key.txt
+# Retrieve the API key from the environment variable.
 try:
-    with open("Key.txt", "r") as key_file:
-        API_KEY = key_file.read().strip()
-except Exception as e:
-    raise Exception("Failed to read API key from Key.txt: " + str(e))
+    API_KEY = os.environ["KEY"]
+except KeyError:
+    raise Exception("Environment variable KEY not set. Please set it before running the service.")
 
 # Initialize the repository (it creates the table if needed)
 repo = TrackRepository()
@@ -26,8 +25,7 @@ def recognise_track():
     then checks if the corresponding full track exists in the catalogue using the repository.
     If found, returns JSON with a message, the catalogue track, and selected metadata from AudD.io.
     
-    If the query parameter testmode=true is present, the full Base64-encoded string is returned
-    without truncation, so that tests can decode it and verify the complete audio.
+    When the query parameter testmode=true is present, the full Base64-encoded audio is returned without truncation.
     """
     file = request.files.get('file')
     if not file:
@@ -47,12 +45,12 @@ def recognise_track():
                 "album": result.get("album"),
                 "release_date": result.get("release_date")
             }
-            # Use the repository to look up the track by title and artist.
+            # Look up the track in the catalogue.
             catalogue_metadata = repo.lookup_by_title_artist(result["title"], result["artist"])
             if catalogue_metadata:
-                # Check for test mode: if not in test mode, truncate the encoded_file.
+                encoded = catalogue_metadata.get("encoded_file", "")
+                # Only truncate if test mode is NOT enabled.
                 if request.args.get("testmode") != "true":
-                    encoded = catalogue_metadata.get("encoded_file", "")
                     if len(encoded) > 100:
                         catalogue_metadata["encoded_file"] = encoded[:100] + "..."
                 return jsonify({
