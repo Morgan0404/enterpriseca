@@ -106,3 +106,17 @@ class TrackRepository:
             cursor.execute("DELETE FROM tracks WHERE id = ?", (track_id,))
             connection.commit()
             return cursor.rowcount
+    def delete_by_title_artist(self, title, artist):
+        """
+        Remove a track from the catalogue by matching title and artist.
+        :return: Number of rows affected.
+        """
+        with sqlite3.connect(self.db_file) as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                "DELETE FROM tracks WHERE title = ? AND artist = ?",
+                (title, artist)
+            )
+            connection.commit()
+            return cursor.rowcount
+

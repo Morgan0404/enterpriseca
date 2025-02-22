@@ -25,7 +25,8 @@ def recognise_track():
     then checks if the corresponding full track exists in the catalogue using the repository.
     If found, returns JSON with a message, the catalogue track, and selected metadata from AudD.io.
     
-    When the query parameter testmode=true is present, the full Base64-encoded audio is returned without truncation.
+    When the query parameter testmode=true is present (case-insensitive),
+    the full Base64-encoded audio is returned without truncation.
     """
     file = request.files.get('file')
     if not file:
@@ -45,14 +46,14 @@ def recognise_track():
                 "album": result.get("album"),
                 "release_date": result.get("release_date")
             }
-            # Look up the track in the catalogue.
+            # Use the repository to look up the track by title and artist.
             catalogue_metadata = repo.lookup_by_title_artist(result["title"], result["artist"])
             if catalogue_metadata:
                 encoded = catalogue_metadata.get("encoded_file", "")
-                # Only truncate if test mode is NOT enabled.
-                if request.args.get("testmode") != "true":
-                    if len(encoded) > 100:
-                        catalogue_metadata["encoded_file"] = encoded[:100] + "..."
+                # Check test mode (default is false) in a case-insensitive way.
+                test_mode = request.args.get("testmode", "false").lower() == "true"
+                if not test_mode and len(encoded) > 100:
+                    catalogue_metadata["encoded_file"] = encoded[:100] + "..."
                 return jsonify({
                     "message": "Track recognised and found in catalogue",
                     "metadata": selected_metadata,

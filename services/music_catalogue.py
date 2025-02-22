@@ -1,4 +1,3 @@
-# catalogue.py (or your preferred filename for microservice 2)
 from flask import Flask, request, jsonify
 import os, base64
 from repository import TrackRepository
@@ -53,12 +52,18 @@ def add_track():
     })
     return jsonify({"message": "Track added successfully", "track_id": track_id}), 201
 
-@app.route('/tracks/<int:track_id>', methods=['DELETE'])
-def remove_track(track_id):
+@app.route('/tracks', methods=['DELETE'])
+def remove_track():
     """
-    Remove a track from the catalogue using its ID.
+    Remove a track from the catalogue using its title and artist.
+    Expects query parameters 'title' and 'artist'.
     """
-    rowcount = repo.delete(track_id)
+    title = request.args.get("title")
+    artist = request.args.get("artist")
+    if not title or not artist:
+        return jsonify({"error": "Missing required parameters: title and artist"}), 400
+
+    rowcount = repo.delete_by_title_artist(title, artist)
     if rowcount == 0:
         return jsonify({"error": "Track not found"}), 404
 
