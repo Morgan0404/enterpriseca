@@ -35,22 +35,26 @@ def recognise_track():
     # Send the audio file to AudD.io
     files = {'file': (file.filename, file.read())}
     data = {'api_token': API_KEY}
-    response = requests.post("https://api.audd.io/", files=files, data=data)
-    
+    try:
+        response = requests.post("https://api.audd.io/", files=files, data=data)
+    except requests.exceptions.RequestException as e:
+        # Catch connection errors and return a JSON error response.
+        return jsonify({"error": "Recognition failed"}), 500
+
     if response.status_code == 200:
-        result = response.json().get("result", {})
-        if "title" in result and "artist" in result:
+        # Do not default result to {} so that a missing result is detected.
+        result = response.json().get("result")
+        if result and "title" in result and "artist" in result:
             selected_metadata = {
                 "title": result.get("title"),
                 "artist": result.get("artist"),
                 "album": result.get("album"),
                 "release_date": result.get("release_date")
             }
-            # Use the repository to look up the track by title and artist.
+            # Look up the track in the catalogue by title and artist.
             catalogue_metadata = repo.lookup_by_title_artist(result["title"], result["artist"])
             if catalogue_metadata:
                 encoded = catalogue_metadata.get("encoded_file", "")
-                # Check test mode (default is false) in a case-insensitive way.
                 test_mode = request.args.get("testmode", "false").lower() == "true"
                 if not test_mode and len(encoded) > 100:
                     catalogue_metadata["encoded_file"] = encoded[:100] + "..."
@@ -66,7 +70,8 @@ def recognise_track():
                     "artist": result["artist"],
                     "metadata": selected_metadata
                 }), 404
-        return jsonify({"error": "Recognition failed"}), 500
+        else:
+            return jsonify({"error": "Recognition failed"}), 500
     return jsonify({"error": "Failed to process audio"}), 500
 
 if __name__ == "__main__":

@@ -13,32 +13,34 @@ RECOGNITION_URL = "http://127.0.0.1:5002/recognise"
 CATALOGUE_URL = "http://127.0.0.1:5001/tracks"
 
 # Updated absolute paths (new location)
-VALID_TEST_SONG = "./wavs/Blinding Lights.wav"
-VALID_TEMP_SONG = "./wavs/fake_audio.wav"
+VALID_TEST_SONG = "/Users/morgan/Desktop/EnterpriseCA/wavs/Blinding Lights.wav"
+# We'll remove the fake_audio.wav tests so they don't require extra files.
+# Instead, we'll use Davos.wav as an example of an unrecognized audio.
+UNRECOGNIZED_AUDIO = "/Users/morgan/Desktop/EnterpriseCA/wavs/~Davos.wav"
 
-# For recognition (S4), preload a track.
+# For S4 (Recognition), preload a track so that recognition succeeds.
+# In this case, the preload is for a known track.
 PRELOAD_TRACK = {
     "title": "Don't Look Back In Anger",  # Use exact punctuation as expected.
     "artist": "Oasis",
-    "file_path": "./wavs/Don't Look Back In Anger.wav"
+    "file_path": "/Users/morgan/Desktop/EnterpriseCA/wavs/Don't Look Back In Anger.wav"
 }
-# Corresponding fragment file (S4 happy path) should be named with a tilde.
-FRAGMENT_PATH = "./wavs/~Don't Look Back In Anger.wav"
-
+# The corresponding fragment file (for a happy recognition test) should be named with a tilde.
+FRAGMENT_PATH = "/Users/morgan/Desktop/EnterpriseCA/wavs/~Don't Look Back In Anger.wav"
 
 # ------------------------- S4: Recognition Tests -------------------------
 class TestRecognition(unittest.TestCase):
     def setUp(self):
-        # Preload the catalogue with the expected track for recognition.
+        # S4 (Happy Path Preload): Preload the catalogue with the expected track so that
+        # the recognition service can find it.
         requests.post(CATALOGUE_URL, json=PRELOAD_TRACK)
 
     def test_recognize_valid_audio(self):
         """
         S4 Happy Path:
-        As a user, I want to convert a music fragment to a track,
-        so that I can listen to it.
-        This test verifies that a valid audio fragment returns a 200 response
-        and that the full Base64 string (using testmode=true) decodes to a non‑empty WAV file.
+        As a user, I want to convert a music fragment to a track so that I can listen to it.
+        This test verifies that a valid audio fragment returns a 200 response and that the full
+        Base64-encoded audio (using testmode=true) decodes into a non-empty WAV file.
         """
         try:
             with open(FRAGMENT_PATH, "rb") as audio_file:
@@ -47,22 +49,21 @@ class TestRecognition(unittest.TestCase):
         except FileNotFoundError:
             self.fail(f"Fragment file not found at path: {FRAGMENT_PATH}")
         
-        # Request test mode to get the full encoded string.
+        # Request test mode to get the full (non-truncated) encoded string.
         response = requests.post(f"{RECOGNITION_URL}?testmode=true", files=files)
-        
-        # Happy path: Expect 200 since the track is preloaded.
         self.assertEqual(response.status_code, 200, f"Expected 200, got {response.status_code}")
+        
         response_json = response.json()
         self.assertIn("track", response_json, "Expected 'track' key in response, but got none")
         track = response_json["track"]
         self.assertIn("encoded_file", track, "Expected 'encoded_file' in track data, but got none")
         
         full_encoded = track["encoded_file"]
-        # Write full encoded string for manual verification.
+        # Write the full encoded string to a file for manual verification.
         with open("full_encoded_output.txt", "w") as f:
             f.write(full_encoded)
         
-        # Decode and write out the full audio.
+        # Decode the full Base64 string and write it to answer.wav.
         try:
             wav_data = base64.b64decode(full_encoded)
         except Exception as e:
@@ -71,40 +72,43 @@ class TestRecognition(unittest.TestCase):
         with open("answer.wav", "wb") as out_f:
             out_f.write(wav_data)
         
-        # Assert that the audio is non-empty.
+        # Assert that the decoded audio is non-empty.
         self.assertTrue(len(wav_data) > 0, "Decoded audio is empty")
-
+        
     def test_recognize_missing_file(self):
         """
         S4 Unhappy Path:
-        Test that if no file is uploaded, the service returns a 400 error.
+        As a user, if I do not upload a file, I should receive a 400 error.
         """
         response = requests.post(RECOGNITION_URL)
         self.assertEqual(response.status_code, 400, f"Expected 400, got {response.status_code}")
         self.assertEqual(response.json().get("error"), "No audio file provided")
-
+        
     def test_recognize_invalid_audio(self):
         """
         S4 Unhappy Path:
-        Test that if an invalid audio file is provided, the service returns an error.
+        As a user, if I upload an audio file that cannot be processed (unrecognized by AudD.io),
+        I should receive an error.
+        This test uses an unrecognized audio file (e.g., Davos.wav).
         """
         try:
-            with open(VALID_TEMP_SONG, "rb") as fake_audio:
-                content = fake_audio.read()
-            files = {"file": (os.path.basename(VALID_TEMP_SONG), content)}
+            with open(UNRECOGNIZED_AUDIO, "rb") as audio_file:
+                content = audio_file.read()
+            files = {"file": (os.path.basename(UNRECOGNIZED_AUDIO), content)}
         except FileNotFoundError:
-            self.fail(f"Invalid audio file not found at path: {VALID_TEMP_SONG}")
+            self.fail(f"Unrecognized audio file not found at path: {UNRECOGNIZED_AUDIO}")
+            
         response = requests.post(RECOGNITION_URL, files=files)
-        print("Recognition invalid audio - Status Code:", response.status_code)
-        print("Recognition invalid audio - JSON:", response.json())
-        response_json = response.json()
-        self.assertIn("error", response_json, "Expected error in response, but got success")
+        # Depending on implementation, the endpoint should return a 500 error (or other code)
+        # when AudD.io does not recognize the file. In our endpoint, it returns 500 with "Recognition failed".
+        self.assertEqual(response.status_code, 500, f"Expected 500 for unrecognized audio, got {response.status_code}")
+        self.assertEqual(response.json().get("error"), "Recognition failed")
 
 
 # ------------------------- S1, S2, S3: Catalogue Tests -------------------------
 class TestCatalogue(unittest.TestCase):
     def setUp(self):
-        # Reset the catalogue database (covers S1, S2, S3 Happy Paths)
+        # S1, S2, S3 Happy Path: Reset the catalogue database before each test.
         repo = TrackRepository()
         repo.db_teardown()
 
@@ -142,12 +146,12 @@ class TestCatalogue(unittest.TestCase):
         S2 Happy Path:
         As an administrator, I want to remove a music track from the catalogue,
         so that a user cannot listen to it.
-        This test verifies that removing an existing track (by title and artist) returns 200.
+        This test verifies that removing an existing track (by title and artist) returns a 200 response.
         """
         data = {
             "title": "Temp Song",
             "artist": "Temp Artist",
-            "file_path": VALID_TEMP_SONG
+            "file_path": VALID_TEST_SONG  # Using a valid file path here.
         }
         add_response = requests.post(CATALOGUE_URL, json=data)
         self.assertEqual(add_response.status_code, 201)
@@ -208,7 +212,7 @@ class TestCatalogue(unittest.TestCase):
 
     def test_invalid_request_format(self):
         """
-        S3 Unhappy/General Path:
+        S3 (Unhappy/General Path):
         Test that an invalid POST request (without a JSON body) returns a 400 error.
         """
         response = requests.post(CATALOGUE_URL)
