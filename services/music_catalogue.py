@@ -27,7 +27,11 @@ def add_track():
     Add a full track to the catalogue.
     Reads the file, encodes it in Base64, and stores the track.
     """
-    data = request.get_json()
+    # Use silent=True so that if no JSON is provided, get_json() returns None.
+    data = request.get_json(silent=True)
+    if data is None:
+        return jsonify({"error": "Missing JSON body"}), 400
+
     title = data.get('title')
     artist = data.get('artist')
     file_path = data.get('file_path')
