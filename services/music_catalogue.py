@@ -9,16 +9,12 @@ repo = TrackRepository()
 def list_tracks():
     """
     Retrieve all tracks from the catalogue.
-    Truncate the encoded_file to 100 characters for display.
     """
     tracks = repo.list_all()
     if not tracks:
         return jsonify({"error": "No tracks found"}), 404
 
-    # Truncate encoded_file for display purposes
-    for track in tracks:
-        encoded_file = track["encoded_file"]
-        track["encoded_file"] = encoded_file if len(encoded_file) <= 100 else encoded_file[:100] + "..."
+    # Return tracks without truncating the encoded_file.
     return jsonify({"tracks": tracks}), 200
 
 @app.route('/tracks', methods=['POST'])

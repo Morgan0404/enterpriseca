@@ -11,8 +11,8 @@ try:
 except KeyError:
     raise Exception("Environment variable KEY not set. Please set it before running the service.")
 
-@app.route("/recognize_audio", methods=["POST"])
-def recognize_audio():
+@app.route("/audapi", methods=["POST"])
+def audapi():
     """
     Receives a Base64-encoded audio file in JSON, decodes it, and forwards it to the audd.io API
     for recognition.

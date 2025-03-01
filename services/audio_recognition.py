@@ -10,7 +10,7 @@ app = Flask(__name__)
 repo = TrackRepository()
 
 # Define the URL of the new aud_service microservice.
-AUD_SERVICE_URL = "http://127.0.0.1:5003/recognize_audio"
+AUD_SERVICE_URL = "http://127.0.0.1:5003/audapi"
 
 @app.route("/", methods=['GET'])
 def home():
@@ -18,17 +18,14 @@ def home():
 
 @app.route('/recognise', methods=['POST'])
 def recognise_track():
-    """
-    Receives an audio fragment, encodes it as Base64, forwards it to the aud_service microservice
-    as JSON for recognition, then checks if the corresponding full track exists in the catalogue.
-    If found, returns JSON with a message, selected metadata, and the encoded Base64 audio.
-    
-    When the query parameter testmode=true is present (case-insensitive),
-    the full Base64-encoded audio is returned without truncation.
-    """
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "No audio file provided"}), 400
+
+    # Validate file extension (Ensure it's a .wav file)
+    allowed_extensions = {"wav"}
+    if "." not in file.filename or file.filename.rsplit(".", 1)[1].lower() not in allowed_extensions:
+        return jsonify({"error": "Invalid audio file format"}), 400
 
     # Read the raw binary data and encode it as Base64
     raw_data = file.read()
@@ -77,6 +74,7 @@ def recognise_track():
         else:
             return jsonify({"error": "Recognition failed"}), 500
     return jsonify({"error": "Recognition failed"}), 500
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5002)
