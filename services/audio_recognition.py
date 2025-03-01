@@ -1,7 +1,8 @@
 from flask import Flask, request, jsonify
 import requests
 import os
-from repository import TrackRepository  # Make sure services is a package
+import base64
+from repository import TrackRepository
 
 app = Flask(__name__)
 
@@ -18,8 +19,8 @@ def home():
 @app.route('/recognise', methods=['POST'])
 def recognise_track():
     """
-    Receives an audio fragment, forwards it to the separate aud_service microservice for recognition,
-    then checks if the corresponding full track exists in the catalogue using the repository.
+    Receives an audio fragment, encodes it as Base64, forwards it to the aud_service microservice
+    as JSON for recognition, then checks if the corresponding full track exists in the catalogue.
     If found, returns JSON with a message, selected metadata, and the encoded Base64 audio.
     
     When the query parameter testmode=true is present (case-insensitive),
@@ -29,12 +30,19 @@ def recognise_track():
     if not file:
         return jsonify({"error": "No audio file provided"}), 400
 
-    # Prepare the file to forward to aud_service.
-    files = {'file': (file.filename, file.read())}
+    # Read the raw binary data and encode it as Base64
+    raw_data = file.read()
+    base64_encoded = base64.b64encode(raw_data).decode('ascii')
+
+    # Prepare JSON payload instead of multipart/form-data
+    payload = {
+        "file": base64_encoded,
+        "filename": file.filename
+    }
 
     try:
-        # Call the aud_service to get the recognition result.
-        aud_response = requests.post(AUD_SERVICE_URL, files=files)
+        # Send the Base64-encoded file as JSON to aud_service
+        aud_response = requests.post(AUD_SERVICE_URL, json=payload)
     except requests.exceptions.RequestException:
         return jsonify({"error": "Recognition failed"}), 500
 
@@ -47,11 +55,10 @@ def recognise_track():
                 "album": result.get("album"),
                 "release_date": result.get("release_date")
             }
-            # Look up the track in the catalogue by title and artist.
+            # Look up the track in the catalogue by title and artist
             catalogue_metadata = repo.lookup_by_title_artist(result["title"], result["artist"])
             if catalogue_metadata:
                 encoded = catalogue_metadata.get("encoded_file", "")
-                # Check if test mode is enabled (case-insensitive).
                 test_mode = request.args.get("testmode", "false").lower() == "true"
                 if not test_mode and len(encoded) > 100:
                     encoded = encoded[:100] + "..."
