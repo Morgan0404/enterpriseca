@@ -56,11 +56,9 @@ class TestRecognition(unittest.TestCase):
         self.assertEqual(response.status_code, 200, f"Expected 200, got {response.status_code}")
         
         response_json = response.json()
-        self.assertIn("track", response_json, "Expected 'track' key in response, but got none")
-        track = response_json["track"]
-        self.assertIn("encoded_file", track, "Expected 'encoded_file' in track data, but got none")
+        self.assertIn("encoded_base64", response_json, "Expected 'encoded_base64' key in response, but got none")
         
-        full_encoded = track["encoded_file"]
+        full_encoded = response_json["encoded_base64"]
         # Write the full encoded string to a file for manual verification.
         with open("full_encoded_output.txt", "w") as f:
             f.write(full_encoded)
@@ -75,7 +73,6 @@ class TestRecognition(unittest.TestCase):
         
         # Assert that the decoded audio is non‑empty.
         self.assertTrue(len(wav_data) > 0, "Decoded audio is empty")
-        
     def test_recognise_missing_file_unhappy(self):
         """
         S4 Unhappy Path:

@@ -5,8 +5,6 @@ from repository import TrackRepository  # Make sure services is a package
 
 app = Flask(__name__)
 
-# No need to retrieve API_KEY here since the external API call is now handled by aud_service.
-
 # Initialize the repository (it creates the table if needed)
 repo = TrackRepository()
 
@@ -22,7 +20,7 @@ def recognise_track():
     """
     Receives an audio fragment, forwards it to the separate aud_service microservice for recognition,
     then checks if the corresponding full track exists in the catalogue using the repository.
-    If found, returns JSON with a message, the catalogue track, and selected metadata from the recognition result.
+    If found, returns JSON with a message, selected metadata, and the encoded Base64 audio.
     
     When the query parameter testmode=true is present (case-insensitive),
     the full Base64-encoded audio is returned without truncation.
@@ -56,11 +54,11 @@ def recognise_track():
                 # Check if test mode is enabled (case-insensitive).
                 test_mode = request.args.get("testmode", "false").lower() == "true"
                 if not test_mode and len(encoded) > 100:
-                    catalogue_metadata["encoded_file"] = encoded[:100] + "..."
+                    encoded = encoded[:100] + "..."
                 return jsonify({
                     "message": "Track recognised and found in catalogue",
                     "metadata": selected_metadata,
-                    "track": catalogue_metadata
+                    "encoded_base64": encoded
                 }), 200
             else:
                 return jsonify({
