@@ -184,8 +184,28 @@ class TestCatalogue(unittest.TestCase):
         self.assertEqual(response.status_code, 400, f"Expected 400, got {response.status_code}")
         self.assertEqual(response.json().get("error"), "Missing JSON body")
     
-        
-    
+    def test_add_track_unhappy_failed_encode(self):
+        """
+        S1 Unhappy Path:
+        If the file cannot be read or encoded, the system should return a 500 error.
+        This test simulates a file read/encoding error by patching 'open' to raise an exception.
+        """
+        from services.music_catalogue import add_track, app  # Import the function and app
+
+        data = {
+            "title": "Error Track",
+            "artist": "Error Artist",
+            "file_path": VALID_TEST_SONG
+        }
+        # Use Flask's test client to simulate the request within the same process
+        with app.test_client() as client:
+            with patch("services.music_catalogue.open", side_effect=Exception("Simulated file read error")):
+                response = client.post('/tracks', json=data)
+                self.assertEqual(response.status_code, 500, f"Expected 500, got {response.status_code}: {response.get_data(as_text=True)}")
+                json_response = response.get_json()
+                self.assertIn("error", json_response, "Response missing 'error' key")
+                self.assertEqual(json_response.get("error"), "Failed to encode file")
+                self.assertIn("Simulated file read error", json_response.get("details", ""), "Expected error details not found")
 
 
     # ----- S2: Removing a Music Track -----
