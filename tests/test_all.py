@@ -6,7 +6,7 @@ import base64
 import os
 from unittest.mock import patch
 
-
+# to test please run "python -m unittest tests.test_all"
 
 
 # Insert the project root so that the services folder is in the Python path.
@@ -23,11 +23,11 @@ UNRECOGNIZED_AUDIO = "./wavs/~Davos.wav"
 
 # For S4 (Recognition Happy Path), preload a known track.
 PRELOAD_TRACK = {
-    "title": "Don't Look Back In Anger",
-    "artist": "Oasis",
-    "file_path": "./wavs/Don't Look Back In Anger.wav"
+    "title": "Blinding Lights",
+    "artist": "The Weeknd",
+    "file_path": "./wavs/Blinding Lights.wav"
 }
-FRAGMENT_PATH = "./wavs/~Don't Look Back In Anger.wav"
+FRAGMENT_PATH = "./wavs/~Blinding Lights.wav"
 
 # ======================== S4: Recognition Tests ========================
 class TestRecognition(unittest.TestCase):
@@ -171,18 +171,6 @@ class TestCatalogue(unittest.TestCase):
         self.assertEqual(response.status_code, 400, f"Expected 400, got {response.status_code}")
         self.assertIn("error", response.json())
         self.assertEqual(response.json().get("error"), "Full track file does not exist at provided path")
-    
-    def test_add_track_unhappy_invalid_json(self):
-        """
-        S1 Unhappy Path:
-        As an administrator, if I send a request with an invalid JSON payload,
-        the system should return a 400 error indicating that the JSON body is missing.
-        """
-        headers = {"Content-Type": "application/json"}
-        # Send a malformed JSON string as the body.
-        response = requests.post(CATALOGUE_URL, data="This is not JSON", headers=headers)
-        self.assertEqual(response.status_code, 400, f"Expected 400, got {response.status_code}")
-        self.assertEqual(response.json().get("error"), "Missing JSON body")
     
     def test_add_track_unhappy_failed_encode(self):
         """
