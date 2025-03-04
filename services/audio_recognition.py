@@ -14,10 +14,12 @@ AUD_SERVICE_URL = "http://127.0.0.1:5003/audapi"
 
 @app.route("/", methods=['GET'])
 def home():
+    """Return a welcome message indicating the API is running; returns 200 OK."""
     return jsonify({"message": "Shamzam Audio Recognition API is running"}), 200
 
 @app.route('/recognise', methods=['POST'])
 def recognise_track():
+    """Recognise an audio fragment from a file upload, returning metadata and full track if found; returns 200, 404, 400, or 500."""
     file = request.files.get('file')
     if not file:
         return jsonify({"error": "No audio file provided"}), 400
@@ -31,7 +33,7 @@ def recognise_track():
     raw_data = file.read()
     base64_encoded = base64.b64encode(raw_data).decode('ascii')
 
-    # Prepare JSON payload instead of multipart/form-data
+    # Prepare JSON payload
     payload = {
         "file": base64_encoded,
         "filename": file.filename

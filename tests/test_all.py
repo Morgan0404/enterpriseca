@@ -6,7 +6,9 @@ import base64
 import os
 from unittest.mock import patch
 
+#########################################################
 # to test please run "python -m unittest tests.test_all"
+#########################################################
 
 
 # Insert the project root so that the services folder is in the Python path.
@@ -19,7 +21,7 @@ CATALOGUE_URL = "http://127.0.0.1:5001/tracks"
 
 # Updated absolute paths (new location)
 VALID_TEST_SONG = "./wavs/Blinding Lights.wav"
-UNRECOGNIZED_AUDIO = "./wavs/~Davos.wav"
+UNRECOGNISED_AUDIO = "./wavs/~Davos.wav"
 
 # For S4 (Recognition Happy Path), preload a known track.
 PRELOAD_TRACK = {
@@ -33,7 +35,7 @@ FRAGMENT_PATH = "./wavs/~Blinding Lights.wav"
 class TestRecognition(unittest.TestCase):
     def setUp(self):
         # S4 Happy Path Preload:
-        # Preload the catalogue with a track known to be recognized.
+        # Preload the catalogue with a track known to be recognised.
         response = requests.post(CATALOGUE_URL, json=PRELOAD_TRACK)
         self.assertEqual(response.status_code, 201, "Failed to preload track for recognition tests")
 
@@ -88,17 +90,17 @@ class TestRecognition(unittest.TestCase):
         S4 Unhappy Path:
         As a user, if I upload an audio file that cannot be processed (unrecognised by AudD.io),
         I should receive an error.
-        This test uses an unrecognized audio file (e.g., ~Davos.wav).
+        This test uses an unrecognised audio file (e.g., ~Davos.wav).
         """
         try:
-            with open(UNRECOGNIZED_AUDIO, "rb") as audio_file:
+            with open(UNRECOGNISED_AUDIO, "rb") as audio_file:
                 content = audio_file.read()
-            files = {"file": (os.path.basename(UNRECOGNIZED_AUDIO), content)}
+            files = {"file": (os.path.basename(UNRECOGNISED_AUDIO), content)}
         except FileNotFoundError:
-            self.fail(f"Unrecognized audio file not found at path: {UNRECOGNIZED_AUDIO}")
+            self.fail(f"Unrecognised audio file not found at path: {UNRECOGNISED_AUDIO}")
             
         response = requests.post(RECOGNITION_URL, files=files)
-        self.assertEqual(response.status_code, 500, f"Expected 500 for unrecognized audio, got {response.status_code}: {response.text}")
+        self.assertEqual(response.status_code, 500, f"Expected 500 for unrecognised audio, got {response.status_code}: {response.text}")
         try:
             resp_json = response.json()
         except Exception:
@@ -196,7 +198,7 @@ class TestCatalogue(unittest.TestCase):
                 self.assertIn("Simulated file read error", json_response.get("details", ""), "Expected error details not found")
 
 
-    # ----- S2: Removing a Music Track -----
+        # ----- S2: Removing a Music Track -----
     def test_remove_track_happy(self):
         """
         S2 Happy Path:
@@ -212,9 +214,9 @@ class TestCatalogue(unittest.TestCase):
         add_response = requests.post(CATALOGUE_URL, json=data)
         self.assertEqual(add_response.status_code, 201)
         
-        # Delete the track using query parameters.
-        delete_url = f"{CATALOGUE_URL}?title=Temp%20Song&artist=Temp%20Artist"
-        delete_response = requests.delete(delete_url)
+        # Delete the track using JSON body
+        delete_data = {"title": "Temp Song", "artist": "Temp Artist"}
+        delete_response = requests.delete(CATALOGUE_URL, json=delete_data)
         self.assertEqual(delete_response.status_code, 200, f"Expected 200, got {delete_response.status_code}")
         self.assertEqual(delete_response.json().get("message"), "Track removed")
 
@@ -224,15 +226,15 @@ class TestCatalogue(unittest.TestCase):
         If I try to remove a track that does not exist,
         the system should return a 404 error.
         """
-        delete_url = f"{CATALOGUE_URL}?title=NonExistentSong&artist=NonExistentArtist"
-        response = requests.delete(delete_url)
+        delete_data = {"title": "NonExistentSong", "artist": "NonExistentArtist"}
+        response = requests.delete(CATALOGUE_URL, json=delete_data)
         self.assertEqual(response.status_code, 404, f"Expected 404, got {response.status_code}")
         try:
             data = response.json()
         except Exception:
             data = {}
         self.assertEqual(data.get("error"), "Track not found")
-    
+
     def test_remove_track_unhappy_missing_parameters(self):
         """
         S2 Unhappy Path:
@@ -240,28 +242,26 @@ class TestCatalogue(unittest.TestCase):
         the system should return a 400 Bad Request error.
         """
         # Attempt to delete a track with only the title (missing artist)
-        delete_url = f"{CATALOGUE_URL}?title=SomeSong"
-        response1 = requests.delete(delete_url)
+        delete_data = {"title": "SomeSong"}
+        response1 = requests.delete(CATALOGUE_URL, json=delete_data)
         self.assertEqual(response1.status_code, 400, f"Expected 400, got {response1.status_code}")
         self.assertIn("error", response1.json())
-        self.assertEqual(response1.json().get("error"), "Missing required parameters: title and artist")
+        self.assertEqual(response1.json().get("error"), "Missing required fields: title and artist")
 
         # Attempt to delete a track with only the artist (missing title)
-        delete_url = f"{CATALOGUE_URL}?artist=SomeArtist"
-        response2 = requests.delete(delete_url)
+        delete_data = {"artist": "SomeArtist"}
+        response2 = requests.delete(CATALOGUE_URL, json=delete_data)
         self.assertEqual(response2.status_code, 400, f"Expected 400, got {response2.status_code}")
         self.assertIn("error", response2.json())
-        self.assertEqual(response2.json().get("error"), "Missing required parameters: title and artist")
+        self.assertEqual(response2.json().get("error"), "Missing required fields: title and artist")
 
-        # Attempt to delete a track with neither title nor artist
-        delete_url = f"{CATALOGUE_URL}"
-        response3 = requests.delete(delete_url)
+        # Attempt to delete a track with an empty body
+        delete_data = {}
+        response3 = requests.delete(CATALOGUE_URL, json=delete_data)
         self.assertEqual(response3.status_code, 400, f"Expected 400, got {response3.status_code}")
         self.assertIn("error", response3.json())
-        self.assertEqual(response3.json().get("error"), "Missing required parameters: title and artist")
-    
-
-    
+        self.assertEqual(response3.json().get("error"), "Missing required fields: title and artist")
+        
 
     # ----- S3: Listing Music Tracks -----
     def test_list_tracks_happy(self):
